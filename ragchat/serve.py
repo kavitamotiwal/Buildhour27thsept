@@ -19,6 +19,17 @@ st.set_page_config(page_title="Course Notes RAG Bot", page_icon="📚", layout="
 
 MIN_QUESTION_LENGTH = 2
 
+SUGGESTIONS = [
+    ("RAG overview", "What is retrieval-augmented generation and why is it useful?"),
+    ("Chunking", "How does the chunker split documents and why does overlap matter?"),
+    ("Vector retrieval", "How does the system find the most similar chunks?"),
+    ("Refusals", "What happens when a question falls outside the indexed notes?"),
+]
+
+
+def set_question(question: str) -> None:
+    st.session_state["pending"] = question
+
 
 @st.cache_resource(show_spinner="Loading the index and the model...")
 def get_boot():
@@ -105,6 +116,22 @@ def main() -> None:
     st.title("📚 Course Notes RAG Bot")
     render_banner(issues)
 
+    if not thread():
+        st.markdown(
+            "<h2 style='text-align:center'>How can I help you today?</h2>",
+            unsafe_allow_html=True,
+        )
+        st.caption("I answer only from the indexed course notes.")
+        cols = st.columns(2)
+        for i, (title, question) in enumerate(SUGGESTIONS):
+            cols[i % 2].button(
+                f"**{title}**\n\n{question}",
+                key=f"sug{i}",
+                on_click=set_question,
+                args=(question,),
+                use_container_width=True,
+            )
+
     for message in thread():
         with st.chat_message(message["role"]):
             if message["role"] == "assistant":
@@ -112,15 +139,17 @@ def main() -> None:
             else:
                 st.markdown(message["content"])
 
+    pending = st.session_state.pop("pending", None)
     typed = st.chat_input("Ask a question about the course notes")
-    if typed is not None:
-        if not looks_like_a_question(typed):
+    prompt = pending if pending is not None else typed
+    if prompt is not None:
+        if not looks_like_a_question(prompt):
             st.warning("Type a real question to continue.")
         else:
             # Capture history BEFORE recording the new question, so the prompt does not
             # contain it twice.
             prior = history()
-            question = typed.strip()
+            question = prompt.strip()
             thread().append({"role": "user", "content": question})
 
             try:
