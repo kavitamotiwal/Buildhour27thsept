@@ -1,0 +1,81 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Count 2 /Kids [5 0 R 7 0 R] >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Length 872 >>
+stream
+BT
+/F1 11 Tf
+15 TL
+72 750 Td
+(Week 3 Lecture Notes: Prompting a Grounded Model) Tj T*
+() Tj T*
+(A grounded prompt has two parts: a system instruction that fixes the) Tj T*
+(model's role and forbids outside knowledge, and a user message that) Tj T*
+(supplies the retrieved context and the question.) Tj T*
+() Tj T*
+(The retrieved passages should be fenced with numbered markers so the) Tj T*
+(model can refer to them and the interface can attach a citation to) Tj T*
+(each one. Fences also limit how much a retrieved passage can blur) Tj T*
+(into the instruction, since a passage cannot close a fence it does) Tj T*
+(not know the name of.) Tj T*
+() Tj T*
+(Temperature controls randomness. A grounded question-answering bot) Tj T*
+(should run at a low temperature, around 0.2, because a higher value) Tj T*
+(invents plausible detail that is not in the source text.) Tj T*
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 4 0 R >>
+endobj
+6 0 obj
+<< /Length 915 >>
+stream
+BT
+/F1 11 Tf
+15 TL
+72 750 Td
+(Citations and Verification) Tj T*
+() Tj T*
+(A citation is only useful if the reader can act on it. That means every) Tj T*
+(chunk must carry the file it came from and its position within that) Tj T*
+(file: a page number for a PDF, a section heading for a text document.) Tj T*
+() Tj T*
+(Citations should be derived from the chunks that were actually sent to) Tj T*
+(the model, not by parsing markers out of the generated prose. A model) Tj T*
+(that invents a bracket number has not invented a source; it has) Tj T*
+(invented a reference to a source that was present. Letting the) Tj T*
+(prose drive the citation list makes that failure visible to the user.) Tj T*
+() Tj T*
+(Showing the retrieved text itself, alongside the answer, is what makes) Tj T*
+(a grounded system auditable. A reader can check whether the cited) Tj T*
+(passage really supports the claim in one glance.) Tj T*
+ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 6 0 R >>
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000121 00000 n 
+0000000191 00000 n 
+0000001114 00000 n 
+0000001240 00000 n 
+0000002206 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R >>
+startxref
+2332
+%%EOF

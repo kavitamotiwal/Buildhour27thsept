@@ -1,0 +1,20 @@
+{"question": "What is retrieval-augmented generation?", "in_corpus": true, "expected_source_file": "week1_intro_to_rag.md", "expected_section": "What RAG Is", "kind": "definition"}
+{"question": "What are the two stages of a RAG system, and when does each one run?", "in_corpus": true, "expected_source_file": "week1_intro_to_rag.md", "expected_section": "The Two Stages", "kind": "lookup"}
+{"question": "What breaks if the index and the query use different embedding models?", "in_corpus": true, "expected_source_file": "week1_intro_to_rag.md", "expected_section": "The Two Stages", "kind": "lookup"}
+{"question": "What chunk size and overlap does the course recommend, and why?", "in_corpus": true, "expected_source_file": "week1_intro_to_rag.md", "expected_section": "Chunking", "kind": "lookup"}
+{"question": "Why do consecutive chunks overlap?", "in_corpus": true, "expected_source_file": "week1_intro_to_rag.md", "expected_section": "Chunking", "kind": "lookup"}
+{"question": "Why must a chunk not cross a page or a section boundary?", "in_corpus": true, "expected_source_file": "week1_intro_to_rag.md", "expected_section": "Chunking", "kind": "lookup"}
+{"question": "What is an embedding?", "in_corpus": true, "expected_source_file": "week1_intro_to_rag.md", "expected_section": "Embeddings", "kind": "definition"}
+{"question": "What range does cosine similarity take, and what does a value of one mean?", "in_corpus": true, "expected_source_file": "week1_intro_to_rag.md", "expected_section": "Embeddings", "kind": "lookup"}
+{"question": "Why is cosine similarity not enough on its own to guarantee a grounded answer?", "in_corpus": true, "expected_source_file": "week1_intro_to_rag.md", "expected_section": "Embeddings", "kind": "relation"}
+{"question": "How should the similarity threshold be calibrated, and what should you do if the score populations overlap?", "in_corpus": true, "expected_source_file": "week1_intro_to_rag.md", "expected_section": "Refusing to Answer", "kind": "lookup"}
+{"question": "What metadata does a vector store keep alongside each vector, and why does it matter?", "in_corpus": true, "expected_source_file": "week2_vector_stores.txt", "kind": "lookup"}
+{"question": "Why are embedding vectors normalized before they are written to the store?", "in_corpus": true, "expected_source_file": "week2_vector_stores.txt", "kind": "lookup"}
+{"question": "What is brute-force similarity search, and when is an approximate index like HNSW worth using?", "in_corpus": true, "expected_source_file": "week2_vector_stores.txt", "kind": "relation"}
+{"question": "What temperature should a grounded question-answering bot run at, and what goes wrong at a higher one?", "in_corpus": true, "expected_source_file": "week3_prompting.pdf", "expected_page": 1, "kind": "lookup"}
+{"question": "Why should citations be derived from the retrieved chunks instead of parsed out of the model's prose?", "in_corpus": true, "expected_source_file": "week3_prompting.pdf", "expected_page": 2, "kind": "relation"}
+{"question": "What is the capital city of France?", "in_corpus": false, "kind": "out_of_corpus"}
+{"question": "How do I train a convolutional neural network from scratch on ImageNet?", "in_corpus": false, "kind": "near_miss"}
+{"question": "What did the professor say about how the final project will be graded?", "in_corpus": false, "kind": "near_miss"}
+{"question": "How do I install Docker on Ubuntu 22.04?", "in_corpus": false, "kind": "near_miss"}
+{"question": "What is the weather forecast for Copenhagen next Tuesday?", "in_corpus": false, "kind": "out_of_corpus"}

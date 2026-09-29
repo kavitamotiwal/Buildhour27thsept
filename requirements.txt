@@ -1,0 +1,15 @@
+# Dependencies for the whole project (implementation.md phases 0-6).
+#   pydantic, python-dotenv  config and data contracts
+#   pypdf, tiktoken          corpus loading and chunking
+#   chromadb                 vector store
+#   fastembed                offline embedding backend
+#   streamlit                web UI
+#   pytest                   tests
+pydantic>=2.7,<3
+python-dotenv>=1.0,<2
+pypdf>=4.2,<6
+tiktoken>=0.7,<1
+chromadb>=1.5,<2
+fastembed>=0.4,<1
+streamlit>=1.30,<2
+pytest>=8.2,<9
