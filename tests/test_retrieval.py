@@ -18,12 +18,13 @@ QUESTIONS = [json.loads(line) for line in QUESTIONS_PATH.read_text(encoding="utf
 
 # Calibrated with the local backend against this corpus; see scripts/calibrate_threshold.py.
 # Re-derive after changing the embedding model or the corpus (architecture.md section 5.3).
-CALIBRATED_THRESHOLD = 0.6739
+CALIBRATED_THRESHOLD = 0.6694
 
-# Diagnosed retrieval ambiguity, not a threshold problem. "normalize before writing" is
-# discussed in week2 VECTOR STORAGE, but week1 Embeddings is a near-tie at 500/50 chunking.
-# Fixed only by shrinking chunks to 100/25, which overfits a 9-chunk sample corpus.
-KNOWN_AMBIGUOUS = "Why are embedding vectors normalized before they are written to the store?"
+# Out-of-scheme, advice, and PII questions never reach the retriever: scope + guardrails
+# refuse them first (ragchat.guardrails). Only factual, in-scope questions hit the gate, so
+# the retrieval contract below covers in-corpus questions and the in-scope-but-absent "gate
+# negatives".
+GATE_NEGATIVE_KINDS = ("advice", "pii")
 
 
 @pytest.fixture(scope="module")
@@ -51,6 +52,17 @@ def _in_corpus():
 
 def _out_of_corpus():
     return [q for q in QUESTIONS if not q.get("in_corpus")]
+
+
+def _gate_negatives():
+    """Factual, in-scope questions that reach the retrieval gate but are absent from the corpus."""
+    return [
+        q
+        for q in QUESTIONS
+        if not q.get("in_corpus")
+        and q.get("scope", True)
+        and q.get("kind") not in GATE_NEGATIVE_KINDS
+    ]
 
 
 # --- conditioning (architecture.md section 3.5) -------------------------------
@@ -198,7 +210,7 @@ def test_in_corpus_question_returns_a_chunk(retriever, question):
 # --- the FR5 contract: every out-of-corpus question is refused ----------------
 
 
-@pytest.mark.parametrize("question", [q["question"] for q in _out_of_corpus()])
+@pytest.mark.parametrize("question", [q["question"] for q in _gate_negatives()])
 def test_out_of_corpus_question_falls_below_threshold(retriever, question):
     result = retriever.retrieve(question)
     assert result.best_score < CALIBRATED_THRESHOLD, (
@@ -208,7 +220,7 @@ def test_out_of_corpus_question_falls_below_threshold(retriever, question):
 
 def test_class_populations_separate(retriever):
     positive = [retriever.retrieve(q["question"]).best_score for q in _in_corpus()]
-    negative = [retriever.retrieve(q["question"]).best_score for q in _out_of_corpus()]
+    negative = [retriever.retrieve(q["question"]).best_score for q in _gate_negatives()]
     assert min(positive) > max(negative)
     assert CALIBRATED_THRESHOLD == pytest.approx((max(negative) + min(positive)) / 2, abs=0.005)
 
@@ -218,8 +230,6 @@ def test_class_populations_separate(retriever):
 
 @pytest.mark.parametrize("question", [q["question"] for q in _in_corpus()])
 def test_in_corpus_question_retrieves_expected_source(retriever, question):
-    if question == KNOWN_AMBIGUOUS:
-        pytest.xfail("retrieval ambiguity between week1 Embeddings and week2 VECTOR STORAGE at 500/50")
     item = next(q for q in _in_corpus() if q["question"] == question)
     top = retriever.retrieve(question).hits[0].chunk
     assert top.metadata.get("source_file") == item.get("expected_source_file")
@@ -247,7 +257,7 @@ def test_unset_threshold_fails_closed_rather_than_opening_the_gate(retriever, mo
 
 
 def test_calibrated_threshold_comes_from_config(retriever, monkeypatch):
-    monkeypatch.setattr("ragchat.retriever.CONFIG", SimpleNamespace(SIMILARITY_THRESHOLD=0.6739))
+    monkeypatch.setattr("ragchat.retriever.CONFIG", SimpleNamespace(SIMILARITY_THRESHOLD=0.6694))
     assert retriever.passes_threshold(0.60) is False
     assert retriever.passes_threshold(0.80) is True
 
@@ -256,9 +266,9 @@ def test_calibrated_threshold_comes_from_config(retriever, monkeypatch):
 
 
 def test_demo_set_shape():
-    assert len(QUESTIONS) == 20
-    assert len(_in_corpus()) == 15
-    assert len(_out_of_corpus()) == 5
+    assert len(QUESTIONS) == 22
+    assert len(_in_corpus()) == 11
+    assert len(_out_of_corpus()) == 11
 
 
 def test_demo_set_has_enough_near_misses():

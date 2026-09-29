@@ -10,20 +10,23 @@ import streamlit as st
 from ragchat.models import Answer, Turn
 from ragchat.pipeline import boot
 
-CORPUS = """These are the course notes for this module. The bot answers only from them and
-says so when a question falls outside them."""
+CORPUS = """Official public Groww pages for 5 HDFC Mutual Fund schemes:
+Large Cap, Flexi Cap, ELSS Tax Saver (3Y lock-in), Small Cap, and Balanced Advantage Fund.
+The bot answers only from these pages and says so when a question falls outside them."""
 
-GROUNDING = "This bot answers only from the indexed course notes. It is designed to refuse rather than guess."
+GROUNDING = (
+    "Facts-only. No investment advice. This bot answers only from the official HDFC scheme "
+    "pages it was given, and refuses rather than guesses."
+)
 
-st.set_page_config(page_title="Course Notes RAG Bot", page_icon="📚", layout="centered")
+st.set_page_config(page_title="HDFC Mutual Fund Assistant", page_icon="📊", layout="centered")
 
 MIN_QUESTION_LENGTH = 2
 
 SUGGESTIONS = [
-    ("RAG overview", "What is retrieval-augmented generation and why is it useful?"),
-    ("Chunking", "How does the chunker split documents and why does overlap matter?"),
-    ("Vector retrieval", "How does the system find the most similar chunks?"),
-    ("Refusals", "What happens when a question falls outside the indexed notes?"),
+    ("Expense ratio", "What is the expense ratio of HDFC Large Cap Fund?"),
+    ("Exit load", "What is the exit load of HDFC Small Cap Fund?"),
+    ("ELSS lock-in", "How long is the lock-in period for HDFC ELSS Tax Saver Fund?"),
 ]
 
 
@@ -59,12 +62,12 @@ def render_sources(answer: Answer) -> None:
     if not answer.retrieved:
         return
     top_score = answer.retrieved[0].score
-    with st.expander(f"Sources ({len(answer.retrieved)}) · top score {top_score:.2f}"):
+    with st.expander(f"Retrieved passages ({len(answer.retrieved)}) · top score {top_score:.2f}"):
         for hit in answer.retrieved:
             chunk = hit.chunk
-            st.markdown(
-                f"**[{hit.rank}] {chunk.source_file} · {chunk.anchor}**  ·  score `{hit.score:.4f}`"
-            )
+            scheme = chunk.metadata.get("scheme") or chunk.source_file
+            link = f" — [link]({chunk.source_url})" if chunk.source_url else ""
+            st.markdown(f"**[{hit.rank}] {scheme}{link} · {chunk.anchor}**  ·  score `{hit.score:.4f}`")
             st.caption(chunk.text)
             st.divider()
 
@@ -73,8 +76,16 @@ def render_assistant_turn(answer: Answer) -> None:
     st.markdown(answer.text)
 
     if answer.citations:
-        row = "  ·  ".join(f"{chunk.source_file} · {chunk.anchor}" for chunk in answer.citations)
-        st.caption(row)
+        lines = []
+        for chunk in answer.citations:
+            scheme = chunk.metadata.get("scheme") or chunk.source_file
+            url = chunk.source_url
+            if url:
+                lines.append(f"- **{scheme}** — [official scheme page]({url}) · {chunk.anchor}")
+            else:
+                lines.append(f"- **{chunk.source_file}** · {chunk.anchor}")
+        st.caption("**Sources:**")
+        st.markdown("\n".join(lines))
 
     if answer.refused and answer.retrieved:
         st.caption(f"Best match scored {answer.retrieved[0].score:.4f}, below the refusal threshold.")
@@ -113,7 +124,7 @@ def render_sidebar(config: dict) -> None:
 def main() -> None:
     pipeline, issues, config = get_boot()
 
-    st.title("📚 Course Notes RAG Bot")
+    st.title("📊 HDFC Mutual Fund Assistant")
     render_banner(issues)
 
     if not thread():
@@ -121,10 +132,12 @@ def main() -> None:
             "<h2 style='text-align:center'>How can I help you today?</h2>",
             unsafe_allow_html=True,
         )
-        st.caption("I answer only from the indexed course notes.")
-        cols = st.columns(2)
+        st.caption("I answer only from the official HDFC scheme pages I was given.")
+        st.info("Facts-only. No investment advice.", icon="ℹ️")
+        st.divider()
+        cols = st.columns(3)
         for i, (title, question) in enumerate(SUGGESTIONS):
-            cols[i % 2].button(
+            cols[i % 3].button(
                 f"**{title}**\n\n{question}",
                 key=f"sug{i}",
                 on_click=set_question,
@@ -140,7 +153,7 @@ def main() -> None:
                 st.markdown(message["content"])
 
     pending = st.session_state.pop("pending", None)
-    typed = st.chat_input("Ask a question about the course notes")
+    typed = st.chat_input("Ask a question about HDFC mutual fund schemes")
     prompt = pending if pending is not None else typed
     if prompt is not None:
         if not looks_like_a_question(prompt):

@@ -8,9 +8,10 @@ from .config import CONFIG
 from .embedder import get_embedder
 from .errors import ConfigurationError, IndexMissingError, RagChatError
 from .generator import Generator, get_llm
+from .guardrails import classify_question, classify_scope
 from .ingest import manifest_warnings
 from .models import Answer, ScoredChunk, coerce_history
-from .prompts import REFUSAL
+from .prompts import ADVICE_REFUSAL, PII_RESPONSE, REFUSAL
 from .retriever import Retriever
 from .vectorstore import VectorStore
 
@@ -27,6 +28,28 @@ class Pipeline:
         self.retriever = Retriever(self.embedder, self.store, k=self.k)
         self.generator = Generator(llm) if llm is not None else None
 
+    def _classify(self, question: str, started: float) -> Answer | None:
+        """Pre-retrieval short-circuit: returns an answer to return, or None to continue.
+
+        Shared by ask() and preflight(), so a classifier-driven refusal is reflected in
+        both the live path and the offline demo check.
+        """
+        kind = classify_question(question)
+        if kind != "factual":
+            message = PII_RESPONSE if kind == "pii" else ADVICE_REFUSAL
+            return Answer(
+                text=message,
+                refused=True,
+                latency_ms={"classify": _elapsed(started), "total": _elapsed(started)},
+            )
+        if not classify_scope(question):
+            return Answer(
+                text=REFUSAL,
+                refused=True,
+                latency_ms={"classify": _elapsed(started), "total": _elapsed(started)},
+            )
+        return None
+
     def ask(self, question: str, history: list | None = None) -> Answer:
         """Retrieve, gate, then generate or refuse.
 
@@ -35,6 +58,12 @@ class Pipeline:
         """
         history = coerce_history(history)
         started = time.perf_counter()
+
+        # PRD 8.2 step 3 (PII/advice) and section 6.1 (scheme scope): refuse before retrieval.
+        short_circuit = self._classify(question, started)
+        if short_circuit is not None:
+            return short_circuit
+
         try:
             result = self.retriever.retrieve(question, history, k=self.k)
         except ConfigurationError:
@@ -79,9 +108,12 @@ class Pipeline:
         )
 
     def preflight(self, question: str, history: list | None = None) -> Answer:
-        """Retrieve and gate only, never generate. Used to check the demo script offline."""
-        history = coerce_history(history)
+        """Classify, retrieve, and gate — never generate. Offline demo check."""
         started = time.perf_counter()
+        short_circuit = self._classify(question, started)
+        if short_circuit is not None:
+            return short_circuit
+        history = coerce_history(history)
         result = self.retriever.retrieve(question, history, k=self.k)
         passes = self.retriever.passes_threshold(result.best_score, threshold=self.threshold)
         return Answer(
@@ -175,4 +207,4 @@ def describe() -> dict[str, object]:
     }
 
 
-__all__ = ["Pipeline", "boot", "startup_checks", "describe", "ScoredChunk", "REFUSAL"]
+__all__ = ["Pipeline", "boot", "startup_checks", "describe", "ScoredChunk", "ADVICE_REFUSAL", "PII_RESPONSE", "REFUSAL"]

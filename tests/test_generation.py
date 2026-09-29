@@ -170,7 +170,8 @@ def test_refusal_path_makes_zero_llm_calls():
 
 
 def test_refusal_names_the_corpus():
-    assert "course notes" in REFUSAL.lower()
+    assert "hdfc scheme pages" in REFUSAL.lower()
+    assert "balanced advantage fund" in REFUSAL.lower()
 
 
 def test_generator_with_no_chunks_refuses_without_calling_model():

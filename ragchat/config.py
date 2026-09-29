@@ -22,7 +22,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 #
 # Re-derive with scripts/calibrate_threshold.py after changing the corpus, EMBEDDING_MODEL,
 # CHUNK_SIZE, or CHUNK_OVERLAP. See architecture.md section 5.3.
-DEFAULT_SIMILARITY_THRESHOLD = 0.6739
+DEFAULT_SIMILARITY_THRESHOLD = 0.6694
 
 DEFAULTS: dict[str, object] = {
     "EMBEDDING_BACKEND": "auto",
@@ -58,7 +58,7 @@ INT_KEYS = (
 FLOAT_KEYS = ("LLM_TEMPERATURE", "SIMILARITY_THRESHOLD")
 
 HOSTED_DEFAULT_MODEL = "text-embedding-3-small"
-LOCAL_DEFAULT_MODEL = "BAAI/bge-small-en-v1.5"
+LOCAL_DEFAULT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 _SECRET_MARKERS = ("KEY", "TOKEN", "SECRET", "PASSWORD")
 

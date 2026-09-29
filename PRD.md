@@ -1,215 +1,155 @@
-# PRD: Course RAG Chatbot (Class Demo)
+# PRD: Mutual Fund FAQ RAG Chatbot (Class Demo)
 
-**Status:** Draft — for team review
-**Owner:** RAG Demo Team
-**Target:** End of class project demo
+## 1. Summary
+A small, facts-only RAG (Retrieval-Augmented Generation) chatbot that answers factual questions about a fixed set of HDFC mutual fund schemes — expense ratio, exit load, minimum SIP, ELSS lock-in, riskometer, benchmark, and how to download statements — using only official public scheme pages as its knowledge source. Every answer must cite exactly one source link. The bot must refuse opinion/advice questions (e.g., "should I buy X?").
 
-> **Note on inputs:** `Problemstatement.txt` was empty when this PRD was drafted. The scope below
-> is an assumption-based proposal built around a RAG chatbot demo. Items marked
-> **[ASSUMPTION]** need confirmation before we lock the plan.
+This is a class demo project: the priority is a working, explainable end-to-end RAG pipeline (ingestion → retrieval → generation), not production robustness.
 
----
+## 2. Problem Statement
+Retail investors and support/content teams repeatedly ask the same factual questions about mutual fund schemes (fees, lock-ins, minimums, risk labels). Answering these manually is repetitive and error-prone, and people sometimes conflate factual lookups with investment advice. We need a small assistant that:
+- Answers only from official public pages (no blogs, no hallucinated numbers).
+- Always shows a source link per answer.
+- Politely declines advice-seeking questions.
 
-## 1. Overview
+## 3. Goals
+- Demonstrate a complete RAG pipeline: **Loading → Chunking → Embedding → Vector Store → Retrieval → Answer Generation**.
+- Answer factual queries about 5 HDFC schemes with a cited source link in every response.
+- Refuse opinionated/portfolio questions gracefully, pointing to an educational resource instead.
+- Ship a minimal, demoable UI in the time available for a class project.
 
-Build a retrieval-augmented generation (RAG) chatbot that answers questions about a fixed body
-of course material, grounding every response in the source documents. The goal is a working,
-explainable demo: a user asks a question, the system retrieves the relevant course notes and
-returns an answer with citations back to those notes.
+## 4. Non-Goals
+- No investment advice, recommendations, or "buy/sell" guidance.
+- No performance computation or cross-scheme return comparisons (only what the source states, with a link to the factsheet).
+- No PII collection or storage (PAN, Aadhaar, account numbers, OTP, email, phone).
+- No production-grade auth, multi-user accounts, or scaling — this is a class demo.
+- No use of third-party blogs or unofficial sources for facts.
 
-This is a **demo, not a production system.** It should be impressive in a 5-minute walkthrough
-and honest about its limits.
+## 5. Target Users
+- **Retail users** comparing mutual fund schemes who want quick factual lookups.
+- **Support/content teams** who field repetitive MF questions and want a first-pass factual assistant.
 
-## 2. Goals
+## 6. Scope
 
-| # | Goal | Success signal |
-|---|------|----------------|
-| G1 | Answer questions grounded in the course corpus | Answers cite the source document/section they came from |
-| G2 | Say "I don't know" when the corpus lacks the answer | Out-of-corpus questions return a refusal, not a hallucination |
-| G3 | Show the retrieval step in the UI | User can see which chunks were retrieved and their similarity scores |
-| G4 | Demo-ready reliability | Runs from a single local command; no crashes across a 20-question demo script |
+### 6.1 AMC & Schemes (fixed corpus)
+**AMC: HDFC Mutual Fund**
 
-## 3. Non-Goals
+| Category | Scheme | Source URL |
+|---|---|---|
+| Large Cap | HDFC Large Cap Fund – Direct Growth | https://groww.in/mutual-funds/hdfc-large-cap-fund-direct-growth |
+| Flexi Cap | HDFC Flexi Cap Fund – Direct Growth | https://groww.in/mutual-funds/hdfc-equity-fund-direct-growth |
+| ELSS | HDFC ELSS Tax Saver Fund – Direct Plan Growth | https://groww.in/mutual-funds/hdfc-elss-tax-saver-fund-direct-plan-growth |
+| Small Cap | HDFC Small Cap Fund – Direct Growth | https://groww.in/mutual-funds/hdfc-small-cap-fund-direct-growth |
+| Balanced Advantage (Hybrid) | HDFC Balanced Advantage Fund – Direct Growth | https://groww.in/mutual-funds/hdfc-balanced-advantage-fund-direct-growth |
 
-- Multi-user accounts, auth, or sessions beyond a single conversation thread
-- Writing back to the corpus, or document upload at runtime (corpus is fixed and pre-loaded)
-- Fine-tuning or training any model
-- Voice, images, or multi-modal input
-- Production deployment, scaling, or cost optimization
-- Broad subject coverage — one course, one document set, one demo
+These 5 public pages are the entire retrieval corpus for the demo (supplemented, if time allows, by official AMC/SEBI/AMFI pages such as factsheets, KIM/SID, fee/charges pages, riskometer notes, and statement/tax-doc guides — all must be public, official sources; no third-party blogs).
 
-## 4. Users
+### 6.2 In-scope query types
+- Expense ratio of a named scheme
+- Exit load of a named scheme
+- Minimum SIP / lumpsum amount
+- ELSS lock-in period
+- Riskometer level / benchmark index
+- How to download a capital-gains / account statement
 
-| Persona | Need |
-|---------|-------|
-| Primary: instructor/TA | Ask a question mid-lecture, get a fast grounded answer with a source pointer |
-| Secondary: classmates | Review material after class, ask "how does X relate to Y" |
-| Tertiary: demo audience | Watch the system work and understand *why* it works (retrieval visibility) |
+### 6.3 Out-of-scope query types (must be refused)
+- "Should I buy/sell/switch X?"
+- Performance comparisons or return predictions ("which fund will give best returns?")
+- Any request to accept/store PAN, Aadhaar, account numbers, OTPs, personal email, or phone numbers
 
-## 5. User Stories
+## 7. Functional Requirements
 
-- **US1** As a student, I ask a question in plain language so I can get an answer without
-  reading 60 pages of notes.
-- **US2** As a student, I see which document and page my answer came from, so I can verify it
-  and go read the real material.
-- **US3** As a student, I see the passages the system retrieved, so I can judge whether the
-  answer is trustworthy.
-- **US4** As a student, I ask something outside the course material and get an honest
-  "not in my sources" instead of a confident wrong answer.
-- **US5** As a student, I can ask a follow-up in the same conversation and it understands
-  what I mean by "that" / "it".
-- **US6** As the demo audience, I get an answer within a few seconds so the demo keeps moving.
+| ID | Requirement |
+|---|---|
+| FR1 | System answers factual queries using only retrieved content from the 5 scheme pages (+ any added official sources). |
+| FR2 | Every factual answer includes exactly one source link. |
+| FR3 | Every factual answer is ≤3 sentences. |
+| FR4 | Every answer appends: "Last updated from sources: [date(s)]." |
+| FR5 | System detects opinion/advice-seeking questions and responds with a polite facts-only refusal plus a relevant educational link (not a scheme recommendation). |
+| FR6 | System never computes or compares returns; if asked, it points to the official factsheet link instead. |
+| FR7 | System does not accept or store PAN, Aadhaar, account numbers, OTPs, emails, or phone numbers — such inputs are not persisted and trigger a safe, generic response. |
+| FR8 | UI shows a welcome line, 3 example questions, and a visible disclaimer: "Facts-only. No investment advice." |
 
-## 6. Functional Requirements
+## 8. System Architecture (RAG Pipeline)
 
-### FR1 — Corpus Ingestion (offline, one-time)
-- Load a fixed set of course documents (PDF / Markdown / plain text). **[ASSUMPTION]** PDF
-  notes plus a few Markdown docs.
-- Split each document into overlapping chunks with a fixed size and overlap. **[ASSUMPTION]**
-  ~500 tokens with ~50 token overlap.
-- Attach metadata to every chunk: `source_file`, `page` or `section`, `chunk_index`.
-- Compute an embedding for each chunk and write chunks + embeddings + metadata to a local
-  vector store.
-- Runs as a separate script, not on every app start.
+The pipeline follows two stages, per the class rubric: **Data Ingestion** and **Data Retrieval**.
 
-### FR2 — Retrieval
-- Embed the user's question using the **same** embedding model as the corpus. **[ASSUMPTION]**
-  a hosted embedding API for quality, with a documented local alternative if no key is available.
-- Return the top *k* most similar chunks. **[ASSUMPTION]** k = 4.
-- Support a score threshold: if the best match is below the threshold, treat the question as
-  out-of-corpus and skip generation.
-- Retrieval is single-shot. No reranking, query rewriting, or hybrid keyword search in v1.
+### 8.1 Data Ingestion
+1. **Loading** — Fetch/scrape the 5 public scheme pages (HTML → cleaned text). Store raw + cleaned text per scheme with metadata (scheme name, category, source URL, fetch date).
+2. **Chunking** — Chunking strategy to be decided based on the actual structure of the scraped data (e.g., section-aware chunking around fields like "Expense Ratio", "Exit Load", "Minimum SIP", "Riskometer", "Benchmark" rather than fixed-size blind splitting, since these pages are short and field-oriented). Each chunk retains metadata: scheme name, source URL, section label.
+3. **Embedding** — Model: `sentence-transformers/all-MiniLM-L6-v2`. Each chunk is embedded into a vector.
+4. **Vector Store** — ChromaDB collection storing chunk vectors + metadata (scheme, source URL, section, fetch date).
 
-### FR3 — Answer Generation
-- Build a prompt from the retrieved chunks and the user's question, with explicit instructions
-  to answer **only** from the provided context and to say when the context is insufficient.
-- Use a chat LLM with a short, low-temperature setting for factual accuracy. **[ASSUMPTION]**
-  temperature ~0.1–0.3.
-- Return the generated answer alongside the list of citations.
+### 8.2 Data Retrieval
+1. User query → embedded with the same `all-MiniLM-L6-v2` model.
+2. Similarity search against ChromaDB to retrieve top-k relevant chunks.
+3. **Guardrail check** — classify the query as factual vs. opinion/advice/PII before generation:
+   - If opinion/advice → return the standard refusal + educational link, skip retrieval-based generation.
+   - If PII-bearing → return the standard safe response, do not log/store the PII.
+4. **Answer generation** — LLM composes an answer strictly from retrieved chunks, ≤3 sentences, with the single most relevant source URL attached, plus the "Last updated from sources" footer.
 
-### FR4 — Citation Display
-- Each answer shows which chunks were used, with `source_file` + page/section.
-- Citations are clickable/visible links back to the source material where the format allows.
-
-### FR5 — Out-of-Corpus Handling
-- If retrieval scores fall below threshold, return a fixed refusal message naming the corpus
-  ("I can only answer from the course notes I was given") — no LLM call. **[ASSUMPTION]**
-  rationale: deterministic, and demonstrably prevents hallucination.
-- Non-blocking: a bad question never crashes the app.
-
-### FR6 — Conversation Context
-- The current turn's question is rewritten/conditioned on prior turns so follow-ups resolve.
-  **[ASSUMPTION] v1 scope: the LLM sees the last *k* messages of history and the top chunks
-  are retrieved for the raw question plus history.**
-- Full session memory / summarization is out of scope.
-
-### FR7 — Web UI
-- Chat interface: message thread, input box, send control, loading state.
-- For each assistant message: the answer text, then a citations row, and a collapsible
-  "sources" panel showing the raw retrieved chunk text.
-- Reset/clear conversation button.
-- A small footer noting the corpus being used, so the demo audience knows the scope.
-
-### FR8 — Demo Mode
-- A pre-written script of ~20 questions (15 in-corpus, 5 out-of-corpus) stored in the repo,
-  covering: direct factual lookup, "how does X relate to Y", definitions, and questions that
-  genuinely aren't in the notes.
-- One command to start the app; instructions in the README.
-
-## 7. Non-Functional Requirements
-
-| Area | Requirement |
-|------|-------------|
-| Latency | End-to-end answer in under ~5s for a typical question; retrieval under 1s **[ASSUMPTION]** |
-| Setup | `pip install -r requirements.txt` + one env var for the API key; ingestion via one script |
-| Privacy | Course material is sent to the model provider only as part of a request; no telemetry, no data retention by us |
-| Robustness | Malformed/empty input, API errors, and timeouts surface a friendly message instead of a stack trace |
-| Portability | Runs on macOS/Windows/Linux with Python 3.10+ **[ASSUMPTION]** |
-| Code quality | Typed core modules, no secrets in the repo, `.env` gitignored |
-| Explainability | Model, embedding model, chunk size, k, and threshold all configurable and printed at startup |
-
-## 8. Technical Approach
-
+### 8.3 Architecture Diagram (textual)
 ```
-Documents ──(ingest script)──> chunk + embed ──> local vector store
-                                                        │
-User question ──> embed ──> similarity search ──> top-k chunks
-                                                        │
-                          prior turns ─────────────────┤
-                                                        v
-                                              LLM (grounded prompt)
-                                                        │
-                                        answer + citations + raw chunks
+[5 Public Scheme Pages]
+        │  (Loading)
+        ▼
+[Cleaned Text + Metadata]
+        │  (Chunking — field/section-aware)
+        ▼
+[Chunks]
+        │  (Embedding: all-MiniLM-L6-v2)
+        ▼
+[ChromaDB Vector Store]
+
+User Query → Embed → ChromaDB similarity search → Top-k chunks
+        │
+        ▼
+  Guardrail (factual? opinion? PII?)
+        │
+   ┌────┴─────┐
+   ▼          ▼
+Refuse    Generate answer (≤3 sentences + 1 source link + "Last updated" footer)
 ```
 
-**Stack [ASSUMPTION — confirm with team]:**
+## 9. Tech Stack
+- **Embedding model:** `sentence-transformers/all-MiniLM-L6-v2`
+- **Vector DB:** ChromaDB
+- **Chunking:** Determined from the actual scraped data structure (section/field-aware over fixed-size)
+- **LLM for generation:** TBD by team (any chat-capable model with tool/RAG support)
+- **UI:** Minimal (chat interface, welcome line, 3 example questions, disclaimer banner)
 
-| Layer | Choice | Why |
-|-------|--------|-----|
-| Language | Python 3.10+ | Ecosystem for vector/embedding libs, fastest to build for a demo |
-| Interface | Streamlit | Days-to-hours to a decent chat UI; enough for a live demo |
-| Orchestration | LangChain, or ~300 lines of hand-rolled glue | Hand-rolled is more impressive to explain and removes a dependency risk |
-| Vector store | Chroma (local, zero-config) | No server to run before the demo |
-| Embeddings | Hosted embedding API, local model fallback | Quality vs. offline-ability tradeoff |
-| LLM | Hosted chat model | Quality; demo needs it to sound competent |
-| Secrets | `.env`, gitignored | Never commit keys |
+## 10. Key Constraints
+- **Public sources only.** No app back-end screenshots; no third-party blogs as sources.
+- **No PII.** Do not accept/store PAN, Aadhaar, account numbers, OTPs, emails, or phone numbers.
+- **No performance claims.** No return computation/comparison; link to the official factsheet instead.
+- **Clarity & transparency.** Answers ≤3 sentences; always append "Last updated from sources: ".
 
-**Key design decision to present in the demo:** retrieval is grounded, cited, and thresholded, so
-the failure mode is "I don't know" rather than a confident fabrication.
+## 11. Deliverables
+1. Working prototype link (app/notebook), or a ≤3-minute demo video if hosting isn't possible.
+2. Source list (CSV/MD) of the 5 URLs used.
+3. README with setup steps, scope (AMC + schemes), and known limitations.
+4. Sample Q&A file (5–10 queries with the assistant's answers + links).
+5. Disclaimer snippet used in the UI (facts-only, no advice).
 
-## 9. Success Criteria (Demo Acceptance)
+## 12. Sample Q&A Format (for deliverable #4)
+```
+Q: What is the expense ratio of HDFC Flexi Cap Fund?
+A: [Answer from retrieved chunk, ≤3 sentences]
+Source: https://groww.in/mutual-funds/hdfc-equity-fund-direct-growth
+Last updated from sources: [date]
 
-The demo passes if, live, we can show:
+Q: Should I invest in HDFC Small Cap Fund right now?
+A: I can only share facts from official scheme pages, not investment advice.
+   For guidance on choosing funds, see [educational link].
+```
 
-1. A factual question answered correctly with visible citations. (G1)
-2. The retrieved chunks shown in the UI, matching the answer. (G3)
-3. At least one out-of-corpus question correctly refused. (G2)
-4. One follow-up question that resolves a pronoun. (US5)
-5. Total setup-to-running-app time under ~15 minutes on a clean machine.
+## 13. Success Criteria (for the demo)
+- All 5 schemes have working factual retrieval for: expense ratio, exit load, minimum SIP, riskometer, benchmark, (ELSS lock-in for the ELSS scheme).
+- 100% of factual answers include exactly one source link and the "Last updated" footer.
+- At least 3 opinion-style test questions are correctly refused with an educational link.
+- No PII is echoed, stored, or logged when test PII inputs are submitted.
 
-## 10. Risks and Mitigations
-
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|-------------|
-| Requires network + paid API key on demo day | High | Demo fails | Cache a recorded fallback transcript; rehearse the offline path; cheap/free model option |
-| Hallucination on a question we thought was covered | Medium | Credibility loss | Score threshold + strict grounded prompt + the prepared out-of-corpus questions as a safety demo |
-| Bad chunking makes retrieval feel broken | Medium | Demo feels weak | Tune chunk size/overlap against the demo question set before presenting |
-| Scope creep into "real product" | High | Missed deadline | Non-goals list is binding; new features need a swap, not an addition |
-| Provider rate limit mid-demo | Low | Stutter | Retry with backoff; queue concurrent requests |
-
-## 11. Milestones
-
-| # | Milestone | Deliverable |
-|---|-----------|-------------|
-| M1 | Corpus + ingestion | Ingestion script, chunks embedded, vector store populated |
-| M2 | Retrieval working (no LLM) | CLI that prints top-k chunks for a query — validates the core assumption |
-| M3 | Answer generation + citations | CLI answers questions with source references |
-| M4 | Out-of-corpus threshold | Refusal path verified against a 5-question set |
-| M5 | Streamlit UI | Chat + sources panel + reset |
-| M6 | Demo hardening | Demo script, README, timing check, offline fallback |
-
-M2 is deliberately LLM-free: if retrieval feels wrong, we fix it before any prompt work starts.
-
-## 12. Open Questions
-
-1. What is the actual source corpus, and how large is it? (currently **[ASSUMPTION]**)
-2. Which embedding and chat model — and is there a budget for API usage?
-3. Is LangChain acceptable, or should this be dependency-light and hand-rolled?
-4. Is the demo presented on a machine with reliable internet?
-5. What is the hard deadline?
-6. Should ingestion be per-student (each person ingests a subset) or a single shared prebuilt index?
-7. Any grading rubric we should design the demo to hit?
-
-## 13. Appendix — Assumptions to Confirm
-
-Everything tagged **[ASSUMPTION]** is a placeholder chosen to be reasonable, not a decision:
-
-- Corpus format and size; PDF notes + Markdown
-- Chunk size 500 / overlap 50; top-k = 4
-- Stack: Python + Streamlit + Chroma
-- LangChain allowed as a dependency
-- Hosted embeddings/LLM with a local fallback
-- Similarity threshold exists and out-of-corpus skips generation
-- Follow-up support limited to last-k message history
-- ~20-question demo script, 15 in-corpus / 5 out-of-corpus
-- No auth, no runtime upload, no production deployment
+## 14. Risks & Known Limitations
+- Source pages (Groww) may change layout/values over time — factsheet numbers can go stale; hence the "Last updated from sources" footer instead of implying real-time accuracy.
+- Small corpus (5 pages) limits generalization; the bot should not answer questions about schemes outside this list.
+- Chunking strategy needs validation once actual scraped content is seen — page structure may not be perfectly uniform across the 5 schemes.
+- This is a demo-grade system: no rate limiting, auth, or production monitoring is in scope.

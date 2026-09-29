@@ -10,6 +10,8 @@ from .errors import ConfigurationError, ProviderError
 from .models import Chunk
 from .prompts import FRIENDLY_ERROR, REFUSAL, build_prompt
 
+__all__ = ["last_updated_footer", "unique_citations"]
+
 RETRY_ATTEMPTS = 3
 RETRY_BACKOFF_S = 1.0
 DEFAULT_BASE_URL = "https://api.openai.com/v1"
@@ -111,6 +113,18 @@ def unique_citations(chunks: list[Chunk]) -> list[Chunk]:
     return citations
 
 
+def last_updated_footer(chunks: list[Chunk]) -> str:
+    """PRD FR4: every answer ends with 'Last updated from sources: <latest date>'.
+
+    Derived deterministically from the newest fetch_date in the supplied chunks, so the
+    footer is guaranteed even if the model forgets to add one.
+    """
+    dates = sorted({chunk.fetch_date for chunk in chunks if chunk.fetch_date}, reverse=True)
+    if not dates:
+        return ""
+    return f"Last updated from sources: {dates[0]}."
+
+
 class Generator:
     def __init__(self, llm: LLM) -> None:
         self.llm = llm
@@ -129,6 +143,9 @@ class Generator:
             raise
         except Exception:
             return FRIENDLY_ERROR, unique_citations(chunks)
+        footer = last_updated_footer(chunks)
+        if footer:
+            text = f"{text.strip()}\n\n{footer}"
         return text, unique_citations(chunks)
 
     def _with_retries(self, messages: list[dict]) -> str:

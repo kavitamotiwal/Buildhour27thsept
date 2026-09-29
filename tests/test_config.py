@@ -12,7 +12,7 @@ from ragchat.config import CONFIG, DEFAULTS, DEFAULT_SIMILARITY_THRESHOLD, load_
 
 
 def test_threshold_default_is_the_calibrated_demo_value():
-    assert DEFAULT_SIMILARITY_THRESHOLD == 0.6739
+    assert DEFAULT_SIMILARITY_THRESHOLD == 0.6694
     assert DEFAULTS["SIMILARITY_THRESHOLD"] == DEFAULT_SIMILARITY_THRESHOLD
 
 

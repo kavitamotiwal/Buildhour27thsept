@@ -11,6 +11,7 @@ from .errors import IngestError
 Segment = tuple[str, dict]
 
 _HEADING = re.compile(r"^(#{1,6})\s+(.*\S)\s*$")
+_FRONT_MATTER = re.compile(r"\A---\s*\n(.*?)\n---\s*\n?", re.DOTALL)
 _PDF_SUFFIXES = {".pdf"}
 _MARKDOWN_SUFFIXES = {".md", ".markdown"}
 _TEXT_SUFFIXES = {".txt", ".text"}
@@ -42,13 +43,36 @@ def _load_pdf(path: Path, source_file: str) -> list[Segment]:
     return segments
 
 
+def _parse_front_matter(raw: str) -> tuple[dict[str, str], str]:
+    """A leading `---` fenced key: value block becomes metadata shared by every segment.
+
+    Used by the scheme-pages corpus to carry source_url / fetch_date / scheme / category
+    onto each chunk, so citations can render the public link and the PRD's "Last updated"
+    footer can be derived deterministically. Absent front matter is a no-op.
+    """
+    match = _FRONT_MATTER.match(raw)
+    if not match:
+        return {}, raw
+    meta: dict[str, str] = {}
+    for line in match.group(1).splitlines():
+        if ":" not in line:
+            continue
+        key, _, value = line.partition(":")
+        key = key.strip()
+        value = value.strip()
+        if key and value:
+            meta[key] = value
+    return meta, raw[match.end():]
+
+
 def _load_markdown(path: Path, source_file: str) -> list[Segment]:
     try:
         raw = path.read_text(encoding="utf-8")
     except Exception as exc:
         raise IngestError(f"{source_file}: could not read file ({exc})") from exc
 
-    lines = raw.splitlines()
+    front_matter, body_raw = _parse_front_matter(raw)
+    lines = body_raw.splitlines()
     segments: list[Segment] = []
     current_heading: str | None = None
     buffer: list[str] = []
@@ -57,7 +81,8 @@ def _load_markdown(path: Path, source_file: str) -> list[Segment]:
         text = "\n".join(buffer).strip()
         if text:
             body = f"{current_heading}\n{text}" if current_heading else text
-            segments.append((body, {"source_file": source_file, "section": current_heading or "(preamble)"}))
+            metadata = {"source_file": source_file, "section": current_heading or "(preamble)"}
+            segments.append((body, {**front_matter, **metadata}))
 
     for line in lines:
         match = _HEADING.match(line)

@@ -11,7 +11,7 @@ from .config import CONFIG
 from .errors import IndexMissingError
 from .models import Chunk, ScoredChunk
 
-COLLECTION_NAME = "course_notes"
+COLLECTION_NAME = "hdfc_mf_faq"
 INGEST_COMMAND = "python -m ragchat.ingest --commit"
 COSINE_METADATA = {"hnsw:space": "cosine"}
 

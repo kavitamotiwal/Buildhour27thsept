@@ -136,7 +136,7 @@ def manifest_warnings(expected_model: str | None = None, docs_dir=None) -> list[
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="ragchat.ingest", description="Build the course-notes index.")
+    parser = argparse.ArgumentParser(prog="ragchat.ingest", description="Build the HDFC mutual-fund FAQ index.")
     parser.add_argument("--dry-run", action="store_true", help="load and chunk only; write nothing (default)")
     parser.add_argument("--commit", action="store_true", help="build the index and write data/manifest.json")
     parser.add_argument("--docs-dir", default=None)

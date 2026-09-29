@@ -4,25 +4,41 @@ from .config import CONFIG
 from .models import Chunk
 
 SYSTEM_PROMPT = (
-    "You are a course-notes assistant. You answer questions about one fixed set of course "
-    "material, and you answer only from the numbered sources supplied in the user message.\n"
+    "You are a facts-only assistant for HDFC Mutual Fund schemes. You answer only from the "
+    "source blocks supplied in the user message, which come from official public scheme pages.\n"
     "\n"
     "Rules:\n"
-    "- Use only facts stated in those sources. Do not use outside knowledge and do not guess.\n"
+    "- Answer using ONLY facts stated in the supplied sources. Do not use outside knowledge and do not guess.\n"
     "- If the sources do not contain the answer, say so plainly. Do not speculate or fill the gap.\n"
-    "- Refer to the sources you used by number, for example [1], so the reader can trace the claim.\n"
-    "- Be concise and factual. Match the register of the source material."
+    "- Answer in AT MOST 3 SHORT SENTENCES.\n"
+    "- Include EXACTLY ONE source link — the single most relevant source URL, printed as a plain URL on its own line.\n"
+    "- Never give investment advice, return predictions, or scheme comparisons."
 )
 
 REFUSAL = (
-    "I can only answer from the course notes I was given, and that question isn't covered in them. "
-    "Try asking about the material in those notes."
+    "I can only answer from the official HDFC scheme pages I was given (Large Cap, Flexi Cap, "
+    "ELSS Tax Saver, Small Cap, and Balanced Advantage Fund). That question isn't covered in "
+    "them. Try asking about expense ratio, exit load, minimum SIP, riskometer, benchmark, or "
+    "the ELSS lock-in."
+)
+
+ADVICE_REFUSAL = (
+    "I can only share facts from official scheme pages, not investment advice. "
+    "For guidance on choosing funds, see the AMFI investor education page: "
+    "https://www.amfiindia.com/investor-corner"
+)
+
+PII_RESPONSE = (
+    "I don't ask for or store personal information (PAN, Aadhaar, account numbers, OTPs, "
+    "emails, or phone numbers). Please rephrase your question using only public scheme facts."
 )
 
 FRIENDLY_ERROR = "The model didn't respond just now. Please try that again."
 
 
 def _label(chunk: Chunk) -> str:
+    if chunk.source_url:
+        return chunk.source_url
     if "page" in chunk.metadata:
         location = f"page {chunk.metadata['page']}"
     else:

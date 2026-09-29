@@ -12,33 +12,46 @@ DOCS_DIR = CONFIG.docs_path
 
 def test_discovers_sample_corpus():
     names = {p.name for p in discover(DOCS_DIR)}
-    assert {"week1_intro_to_rag.md", "week2_vector_stores.txt", "week3_prompting.pdf"} <= names
+    assert names == {
+        "hdfc-large-cap-fund-direct-growth.md",
+        "hdfc-flexi-cap-fund-direct-growth.md",
+        "hdfc-elss-tax-saver-fund-direct-plan-growth.md",
+        "hdfc-small-cap-fund-direct-growth.md",
+        "hdfc-balanced-advantage-fund-direct-growth.md",
+    }
 
 
 def test_markdown_splits_on_headings_with_section_anchors():
-    segments = load(DOCS_DIR / "week1_intro_to_rag.md", root=DOCS_DIR)
+    segments = load(DOCS_DIR / "hdfc-large-cap-fund-direct-growth.md", root=DOCS_DIR)
     sections = [meta["section"] for _, meta in segments]
-    assert "What RAG Is" in sections
-    assert "Chunking" in sections
-    assert all(meta["source_file"] == "week1_intro_to_rag.md" for _, meta in segments)
+    assert "Expense Ratio" in sections
+    assert "Exit Load" in sections
+    assert "Riskometer" in sections
+    assert all(meta["source_file"] == "hdfc-large-cap-fund-direct-growth.md" for _, meta in segments)
     assert all("page" not in meta for _, meta in segments)
 
 
 def test_markdown_segment_includes_its_heading():
-    segments = load(DOCS_DIR / "week1_intro_to_rag.md", root=DOCS_DIR)
-    text, meta = next((t, m) for t, m in segments if m["section"] == "Chunking")
-    assert text.startswith("Chunking")
+    segments = load(DOCS_DIR / "hdfc-large-cap-fund-direct-growth.md", root=DOCS_DIR)
+    text, meta = next((t, m) for t, m in segments if m["section"] == "Expense Ratio")
+    assert text.startswith("Expense Ratio")
 
 
-def test_pdf_yields_one_segment_per_page():
-    segments = load(DOCS_DIR / "week3_prompting.pdf", root=DOCS_DIR)
-    assert [meta["page"] for _, meta in segments] == [1, 2]
-    assert all("section" not in meta for _, meta in segments)
-    assert all(text.strip() for text, _ in segments)
+def test_front_matter_becomes_metadata_not_content():
+    segments = load(DOCS_DIR / "hdfc-large-cap-fund-direct-growth.md", root=DOCS_DIR)
+    assert all(
+        meta["source_url"] == "https://groww.in/mutual-funds/hdfc-large-cap-fund-direct-growth"
+        and meta["scheme"] == "HDFC Large Cap Fund - Direct Growth"
+        and meta["fetch_date"] == "2026-09-29"
+        for _, meta in segments
+    )
+    assert all("source_url" not in text.lower() and "fetch_date" not in text.lower() for text, _ in segments)
 
 
-def test_text_file_is_one_segment():
-    segments = load(DOCS_DIR / "week2_vector_stores.txt", root=DOCS_DIR)
+def test_text_file_is_one_segment(tmp_path):
+    target = tmp_path / "notes.txt"
+    target.write_text("just one block of text", encoding="utf-8")
+    segments = load(target)
     assert len(segments) == 1
     assert segments[0][1]["section"]
 

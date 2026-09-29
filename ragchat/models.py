@@ -23,6 +23,16 @@ class Chunk(BaseModel):
         section = self.metadata.get("section")
         return str(section) if section else ""
 
+    @property
+    def source_url(self) -> str:
+        """Public page the chunk came from, when the corpus carries it (front matter)."""
+        return str(self.metadata.get("source_url", ""))
+
+    @property
+    def fetch_date(self) -> str:
+        """Fetch date of the scheme page, when the corpus carries it (front matter)."""
+        return str(self.metadata.get("fetch_date", ""))
+
 
 class ScoredChunk(BaseModel):
     chunk: Chunk

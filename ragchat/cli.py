@@ -17,9 +17,10 @@ def _load_questions(path: Path) -> list[dict]:
 
 def _format_hit(hit) -> str:
     chunk = hit.chunk
+    source = chunk.source_url or chunk.metadata.get("source_file", "")
     location = f"p.{chunk.metadata['page']}" if "page" in chunk.metadata else chunk.metadata.get("section", "")
     excerpt = " ".join(chunk.text.split())[:EXCERPT_CHARS]
-    return f"  [{hit.rank}] score={hit.score:.4f}  {chunk.metadata.get('source_file', '')}  {location}\n      {excerpt}..."
+    return f"  [{hit.rank}] score={hit.score:.4f}  {source}  {location}\n      {excerpt}..."
 
 
 def cmd_retrieve(question: str, history: list[dict] | None, k: int, backend: str | None) -> int:
@@ -54,9 +55,18 @@ def cmd_calibrate(questions_path: Path, backend: str | None) -> int:
     from .embedder import get_embedder
     from .retriever import Retriever
 
+    # Advice/PII questions never reach retrieval (guardrails stop them first), and
+    # out-of-scope questions are refused deterministically by classify_scope. Neither may
+    # participate in gate calibration, which measures retrieval alone.
+    questions = [
+        item
+        for item in _load_questions(questions_path)
+        if item.get("kind") not in ("advice", "pii") and item.get("scope", True)
+    ]
+
     retriever = Retriever(get_embedder(backend))
     rows = []
-    for item in _load_questions(questions_path):
+    for item in questions:
         result = retriever.retrieve(item["question"])
         top = result.hits[0].chunk if result.hits else None
         rows.append(
@@ -88,7 +98,7 @@ def cmd_calibrate(questions_path: Path, backend: str | None) -> int:
     print(f"out-of-corpus n={len(neg_scores):<3} min={min(neg_scores):.4f} max={max(neg_scores):.4f}")
 
     print("\n--- expected-source check (in-corpus only) ---")
-    expected = {item["question"]: item for item in _load_questions(questions_path)}
+    expected = {item["question"]: item for item in questions}
     mismatches = 0
     for row in positives:
         want = expected[row["question"]]
@@ -120,8 +130,22 @@ def cmd_calibrate(questions_path: Path, backend: str | None) -> int:
 
 def cmd_ask(question: str, k: int, backend: str | None, threshold: float | None, show_prompt: bool) -> int:
     from .embedder import get_embedder
-    from .prompts import REFUSAL, build_prompt
+    from .guardrails import classify_question, classify_scope
+    from .prompts import ADVICE_REFUSAL, PII_RESPONSE, REFUSAL, build_prompt
     from .retriever import Retriever
+
+    kind = classify_question(question)
+    if kind != "factual":
+        message = PII_RESPONSE if kind == "pii" else ADVICE_REFUSAL
+        print(f"question   : {question}")
+        print(f"classified : {kind}  (no retrieval, no model call)")
+        print(f"\n{message}")
+        return 0
+    if not classify_scope(question):
+        print(f"question   : {question}")
+        print("classified : out of scope  (no retrieval, no model call)")
+        print(f"\n{REFUSAL}")
+        return 0
 
     retriever = Retriever(get_embedder(backend))
     result = retriever.retrieve(question, k=k)
@@ -157,7 +181,8 @@ def cmd_ask(question: str, k: int, backend: str | None, threshold: float | None,
     print(text)
     print(f"\n--- citations ({len(citations)}) ---")
     for number, chunk in enumerate(citations, start=1):
-        print(f"  [{number}] {chunk.metadata.get('source_file', '')}  {chunk.anchor}")
+        source = chunk.source_url or chunk.metadata.get("source_file", "")
+        print(f"  [{number}] {source}  {chunk.anchor}")
     return 0
 
 
@@ -198,7 +223,7 @@ def cmd_run_demo(questions_path: Path, backend: str | None, check_only: bool) ->
     misrouted: list[str] = []
 
     for number, item in enumerate(questions, start=1):
-        expect_refusal = not item.get("in_corpus", True)
+        expect_refusal = item.get("expect_refusal", not item.get("in_corpus", True))
         if expect_refusal:
             expected_refusals += 1
         try:
@@ -316,7 +341,8 @@ def cmd_chat(backend: str | None) -> int:
         else:
             print(f"bot > {answer.text}")
             for index, citation in enumerate(answer.citations, start=1):
-                print(f"       [{index}] {citation.source_file}  {citation.anchor}")
+                source = citation.source_url or citation.source_file
+                print(f"       [{index}] {source}  {citation.anchor}")
             print(f"       ({answer.latency_ms.get('generate', 0)}ms generate, {answer.latency_ms.get('total', 0)}ms total)")
 
         history.append(Turn(role="user", content=raw))

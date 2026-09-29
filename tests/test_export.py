@@ -34,7 +34,7 @@ def exported(tmp_path_factory, index):
 
 def test_export_contains_every_chunk(index, exported):
     store = VectorStore(path=index)
-    assert len(store.all_chunks()) == 9
+    assert len(store.all_chunks()) == 41
     for chunk in store.all_chunks():
         assert chunk.id in exported
 
@@ -47,10 +47,9 @@ def test_export_includes_full_chunk_text(index, exported):
         assert first_words in flattened
 
 
-def test_export_includes_page_and_section_anchors(exported):
-    assert "page 1" in exported
-    assert "page 2" in exported
-    assert 'section "Chunking"' in exported
+def test_export_includes_section_anchors(exported):
+    assert 'section "Expense Ratio"' in exported
+    assert 'section "Exit Load"' in exported
 
 
 def test_export_includes_embeddings(index, exported):
@@ -83,7 +82,7 @@ def test_export_truncates_by_default_and_expands_with_full(index):
 
 def test_export_lists_strongest_dimensions(exported):
     assert "strongest dimensions:" in exported
-    assert exported.count("strongest dimensions:") == 9
+    assert exported.count("strongest dimensions:") == 41
 
 
 def test_export_rejects_empty_index(tmp_path):

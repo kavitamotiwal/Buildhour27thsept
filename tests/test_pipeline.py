@@ -15,12 +15,13 @@ from ragchat.pipeline import UNAVAILABLE, Pipeline, describe, startup_checks
 from ragchat.vectorstore import VectorStore
 
 QUESTIONS_PATH = Path(__file__).resolve().parent.parent / "scripts" / "demo_questions.jsonl"
-IN_CORPUS = "Why do consecutive chunks overlap?"
-OUT_OF_CORPUS = "What is the capital city of France?"
+IN_CORPUS = "What is the expense ratio of HDFC Large Cap Fund?"
+OUT_OF_CORPUS = "What is the daily SIP limit for an HDFC mutual fund scheme?"
+SCHEME_FOLLOW_UP = "What about the exit load of HDFC Small Cap Fund?"
 
 
 class ScriptedLLM:
-    def __init__(self, reply: str = "Chunks overlap by 50 tokens so no sentence is cut in half.") -> None:
+    def __init__(self, reply: str = "The expense ratio of HDFC Large Cap Fund is 1.03%.") -> None:
         self.reply = reply
         self.calls: list[list[dict]] = []
 
@@ -67,7 +68,7 @@ def pipeline(index, embedder):
 def test_ask_answers_an_in_corpus_question(pipeline):
     answer = pipeline.ask(IN_CORPUS)
     assert not answer.refused
-    assert "50 tokens" in answer.text
+    assert "1.03%" in answer.text
 
 
 def test_ask_returns_citations_for_an_in_corpus_question(pipeline):
@@ -83,6 +84,30 @@ def test_ask_keeps_the_retrieved_chunks_for_debugging(pipeline):
 
 
 # --- the gate -----------------------------------------------------------------
+
+
+def test_advice_question_refuses_without_retrieval_or_model(pipeline):
+    llm = pipeline.generator.llm
+    answer = pipeline.ask("Which fund is better for retirement, HDFC Large Cap or HDFC Small Cap?")
+    assert answer.refused
+    assert "amfiindia.com" in answer.text
+    assert llm.calls == []
+
+
+def test_pii_question_refuses_without_retrieval_or_model(pipeline):
+    llm = pipeline.generator.llm
+    answer = pipeline.ask("My folio number is 100123, show my balance")
+    assert answer.refused
+    assert "personal information" in answer.text
+    assert llm.calls == []
+
+
+def test_out_of_scope_scheme_refuses_without_retrieval_or_model(pipeline):
+    llm = pipeline.generator.llm
+    answer = pipeline.ask("What is the expense ratio of HDFC Short Term Fund?")
+    assert answer.refused
+    assert "hdfc scheme pages" in answer.text.lower()
+    assert llm.calls == []
 
 
 def test_ask_refuses_an_out_of_corpus_question_without_calling_the_model(pipeline):
@@ -145,20 +170,20 @@ def test_in_corpus_still_answers_with_the_default_threshold(index, embedder, mon
 
 
 def test_history_is_coerced_from_turn_objects(pipeline):
-    history = [Turn(role="user", content="What is chunking?"), Turn(role="assistant", content="Splitting a document.")]
-    answer = pipeline.ask("Why do they overlap?", history)
+    history = [Turn(role="user", content="What is the expense ratio of HDFC Small Cap Fund?"), Turn(role="assistant", content="It is 0.78%.")]
+    answer = pipeline.ask(SCHEME_FOLLOW_UP, history)
     assert not answer.refused
 
 
 def test_history_is_coerced_from_plain_dicts(pipeline):
-    answer = pipeline.ask(IN_CORPUS, [{"role": "user", "content": "earlier question"}])
+    answer = pipeline.ask(SCHEME_FOLLOW_UP, [{"role": "user", "content": "What is the expense ratio of HDFC Small Cap Fund?"}])
     assert not answer.refused
 
 
 def test_turn_objects_reach_the_model(pipeline):
-    pipeline.ask("And the overlap?", [Turn(role="user", content="What is chunking?")])
+    pipeline.ask(SCHEME_FOLLOW_UP, [Turn(role="user", content="What is the expense ratio of HDFC Small Cap Fund?")])
     sent = pipeline.generator.llm.calls[-1]
-    assert any(message["content"] == "What is chunking?" for message in sent)
+    assert any(message["content"] == "What is the expense ratio of HDFC Small Cap Fund?" for message in sent)
 
 
 def test_empty_history_is_fine(pipeline):
@@ -185,7 +210,7 @@ def test_unexpected_retrieval_failure_becomes_friendly_text(pipeline, monkeypatc
 
 
 def test_empty_index_tells_the_user_how_to_build_it(embedder, tmp_path):
-    answer = Pipeline(embedder=embedder, store=VectorStore(path=tmp_path / "empty"), llm=ScriptedLLM()).ask("hi")
+    answer = Pipeline(embedder=embedder, store=VectorStore(path=tmp_path / "empty"), llm=ScriptedLLM()).ask(IN_CORPUS)
     assert "--commit" in answer.text
     assert "ingest" in answer.text
 
@@ -270,7 +295,7 @@ def test_describe_reports_the_live_index_size():
 
 
 def test_describe_surfaces_the_calibrated_threshold():
-    assert describe()["similarity threshold"] == pytest.approx(0.6739)
+    assert describe()["similarity threshold"] == pytest.approx(0.6694)
 
 
 # --- the demo script ----------------------------------------------------------
