@@ -118,6 +118,11 @@ model only needs recent turns to read four source blocks.
 `BAAI/bge-small-en-v1.5`: in-corpus scores land in `[0.748, 0.835]`, out-of-corpus in
 `[0.442, 0.600]`. The threshold `0.6739` is the midpoint.
 
+That `0.6739` is also the built-in fallback (`DEFAULT_SIMILARITY_THRESHOLD` in
+`ragchat/config.py`). `SIMILARITY_THRESHOLD` is optional and merely overrides it; when the
+variable is absent, the application uses the default and the refusal gate stays closed, so an
+unconfigured install refuses rather than answering out of corpus.
+
 Re-run `python -m ragchat.cli calibrate` after changing `EMBEDDING_MODEL`, `CHUNK_SIZE`,
 `CHUNK_OVERLAP`, or the corpus. If the two score ranges overlap, **fix the chunking** — do not
 nudge the number until the demo passes.
@@ -128,7 +133,7 @@ nudge the number until the demo passes.
 pytest -q
 ```
 
-167 pass, 1 xfailed. No API key is required: the suite uses the local embedding backend and
+175 pass, 1 xfailed. No API key is required: the suite uses the local embedding backend and
 fake LLMs. The *first* run does need network, to fetch the embedding model — see below.
 
 ### Where the embedding model is cached
@@ -147,7 +152,7 @@ while it does. To make it durable, point `TextEmbedding` at a real directory in
 | "No LLM configured. Set LLM_API_KEY" | no key | add `LLM_API_KEY` to `.env` |
 | 401 from the provider | `LLM_BASE_URL` blank, non-OpenAI key | set the base URL explicitly |
 | Every question refused | threshold too high, or index not built | `python -m ragchat.cli calibrate`, check `retrieve` scores |
-| Every question answered, nothing refused | threshold unset (`None` means the gate is open) | run `calibrate`, write the number to `.env` |
+| Every question answered, nothing refused | unlikely with default config: an unset `SIMILARITY_THRESHOLD` falls back to the built-in `0.6739` and the gate stays fail-closed | if in-corpus questions are being refused, run `python -m ragchat.cli calibrate` and inspect `retrieve` scores — the cause is more likely threshold or retrieval quality than an open gate |
 | First question slow, later ones fast | one-off local model load | expected; steady state is well under the 5s target |
 | Slow again after a few days | model was cached in temp and got cleared | expected; re-downloads once. See the cache note above |
 | Slow on every question | hosted embeddings, or a large top-k | switch to local embeddings, or lower `TOP_K` |
