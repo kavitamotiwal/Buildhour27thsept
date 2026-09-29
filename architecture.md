@@ -254,7 +254,7 @@ All tunables in `config.py`, overridable by env, printed at startup:
 | `CHUNK_SIZE` | `500` | FR1, in tokens |
 | `CHUNK_OVERLAP` | `50` | FR1 |
 | `TOP_K` | `4` | FR2 |
-| `SIMILARITY_THRESHOLD` | calibrated, §5.3 | FR2 / FR5 |
+| `SIMILARITY_THRESHOLD` | `0.6739`, measured per §5.3 | FR2 / FR5; default closes the gate |
 | `HISTORY_TURNS` | `3` | FR6, prompt window |
 | `RETRIEVAL_HISTORY_TURNS` | `10` | FR6, retrieval window |
 | `EMBED_BATCH_SIZE` | `32` | Ingest throughput |
@@ -314,7 +314,18 @@ disagrees with the documents.
 
 ### 5.3 Threshold calibration
 
-**Decision:** treat `SIMILARITY_THRESHOLD` as a measured value, not a default.
+**Decision:** treat `SIMILARITY_THRESHOLD` as a measured value first and a default second. The
+procedure below produces the number; the default exists only so an unconfigured install fails
+closed rather than open.
+
+`DEFAULT_SIMILARITY_THRESHOLD` (`ragchat/config.py`) holds `0.6739`, the value this procedure
+produced for the bundled corpus. An absent or blank `SIMILARITY_THRESHOLD` falls back to it.
+
+That fallback is deliberately **closed**. It previously meant "not calibrated yet", which left the
+gate open, so a fresh clone with no `.env` answered out-of-corpus questions confidently while still
+looking like a working app — FR5 failed silently. The asymmetry settles which way to fail: a
+threshold set too high over-refuses, which is a visible annoyance, whereas one set too low
+produces confident wrong answers, which is the entire failure this system exists to prevent.
 
 Procedure, run once as a script (`scripts/calibrate_threshold.py`) before M4:
 
