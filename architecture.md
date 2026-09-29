@@ -159,10 +159,16 @@ if best < THRESHOLD:  -> refused, no LLM call
 else:                 -> hits to generator
 ```
 
-- **Query conditioning (FR6):** the retrieval query is `current_question` prepended with the
-  last *k* turns (`k=3`) of history as a single string. This is enough to resolve "that" /
+- **Query conditioning (FR6):** the retrieval query is `current_question` prepended with recent
+  turns of history as a single string. This is enough to resolve "that" /
   "it" without a separate query-rewrite LLM call — one fewer network hop on the latency budget.
-  **[ASSUMPTION]** last-3-turns conditioning, per PRD FR6.
+  **[ASSUMPTION]** last-10-turns conditioning, per PRD FR6. See "Two history windows" below.
+- **Two history windows.** Retrieval conditions on `RETRIEVAL_HISTORY_TURNS` (10) while the
+  generator prompt is capped at `HISTORY_TURNS` (3). They differ on purpose: the embedding
+  needs the older referent to resolve a follow-up ("the metric from before the split"), whereas
+  the model only needs recent turns to read four source blocks. Widening the retrieval window
+  raises the risk noted in `ragchat/retriever.py` of a stale topic diluting the query, which is
+  why history is prepended *only* when the question actually refers back.
 - **One embedding per question.** Retrieval and the LLM are strictly sequential; no parallel
   fan-out.
 - **Similarity metric:** cosine. Chroma's default; stored normalized so scores are comparable
@@ -215,8 +221,9 @@ threshold is a property of the retriever, and therefore testable and tunable.
 
 - Streamlit's own `st.session_state` holds the message list; no external session store.
 - Reset button clears it and nothing else (no index rebuild).
-- History passed downstream is capped at the last 3 turns, at prompt-build time, so long
-  conversations cannot grow the prompt unbounded.
+- History passed to the *prompt* is capped at the last `HISTORY_TURNS` (3) turns, at prompt-build
+  time, so long conversations cannot grow the prompt unbounded. The retriever's window is
+  separate and wider; see A3.5.
 - The message list stored for display and the list passed to the model are the same object,
   sliced — no second source of truth for "what has been said".
 
@@ -248,7 +255,8 @@ All tunables in `config.py`, overridable by env, printed at startup:
 | `CHUNK_OVERLAP` | `50` | FR1 |
 | `TOP_K` | `4` | FR2 |
 | `SIMILARITY_THRESHOLD` | calibrated, §5.3 | FR2 / FR5 |
-| `HISTORY_TURNS` | `3` | FR6 |
+| `HISTORY_TURNS` | `3` | FR6, prompt window |
+| `RETRIEVAL_HISTORY_TURNS` | `10` | FR6, retrieval window |
 | `EMBED_BATCH_SIZE` | `32` | Ingest throughput |
 | `LLM_TIMEOUT_S` | `30` | NFR robustness |
 | `CHROMA_DIR` | `data/chroma` | |
@@ -265,7 +273,7 @@ Happy path:
 ```
 1. streamlit   user submits question
 2. pipeline    ask(question, history)
-3. retriever   condition question on last 3 turns
+3. retriever   condition question on last 10 turns
 4. embedder    embed conditioned question          [network]
 5. vectorstore cosine search, top-4                [local, <100ms]
 6. gate        best_score >= THRESHOLD?
@@ -381,7 +389,7 @@ boundary that converts internal failure into a user-facing string.
 |-----------|--------------|--------------|
 | Hand-rolled over framework | We own chunking/prompt quality bugs | Small surface, fully visible, testable at each step |
 | Similarity threshold is coarse | Near-miss questions may be wrongly refused or admitted | Calibrated on the demo set (§5.3); refusal is the safe direction to err |
-| Last-3-turns conditioning only | Very distant follow-ups lose referents | Demo script uses adjacent follow-ups |
+| Last-10-turns retrieval conditioning only | Very distant follow-ups lose referents | Demo script uses adjacent follow-ups; prompt still capped at 3 turns |
 | Non-streaming generation | ~1–2s of blank screen before the answer | Loading state; under the 5s NFR |
 | Refusal skips the LLM entirely | Refusals can't be phrased in context | Intentional — deterministic refusal is more convincing than a sampled one |
 | Corpus sent to a third-party provider | Course material leaves the machine | Documented in README; local fallback exists |
@@ -425,7 +433,8 @@ Stated plainly so the demo is honest rather than caught out:
   still mislead.
 - Citations are the retrieved chunks, not spans the model quoted — so a citation can point to
   a chunk that supports the answer only partially.
-- Follow-ups work over ~3 turns of context, not arbitrary conversation length.
+- Follow-ups resolve over ~10 turns of retrieval context (3 for the model), not arbitrary
+  conversation length.
 - No support for images, tables-of-content cross-references, or documents whose meaning lives
   in a figure or diagram — a real limitation for some STEM material.
 - Ingestion is all-or-nothing; a single bad file aborts the build.
