@@ -5,7 +5,7 @@ import json
 import sys
 from pathlib import Path
 
-from .config import CONFIG
+from .config import CONFIG, DEFAULT_SIMILARITY_THRESHOLD
 from .errors import RagChatError
 
 EXCERPT_CHARS = 200
@@ -37,9 +37,15 @@ def cmd_retrieve(question: str, history: list[dict] | None, k: int, backend: str
         print(_format_hit(hit))
 
     threshold = CONFIG.SIMILARITY_THRESHOLD
-    verdict = "no threshold calibrated yet (gate open)" if threshold is None else (
-        "ABOVE threshold" if retriever.passes_threshold(result.best_score) else "BELOW threshold -> would refuse"
-    )
+    if threshold is None:
+        # Config carries a calibrated number in practice. If it ever does not, the retriever
+        # falls back to DEFAULT_SIMILARITY_THRESHOLD and the gate stays CLOSED at it, so this
+        # is a degraded-config notice rather than an open gate.
+        verdict = f"no threshold in config, gate closed at the built-in {DEFAULT_SIMILARITY_THRESHOLD}"
+    elif retriever.passes_threshold(result.best_score):
+        verdict = "ABOVE threshold"
+    else:
+        verdict = "BELOW threshold -> would refuse"
     print(f"\nbest_score: {result.best_score:.4f}   {verdict}")
     return 0
 

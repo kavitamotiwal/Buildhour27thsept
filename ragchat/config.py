@@ -10,6 +10,20 @@ load_dotenv()
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
+# The refusal gate's fail-closed default.
+#
+# SIMILARITY_THRESHOLD has an asymmetric failure mode, so the safe direction to fail is not
+# obvious. Too low and the bot answers out-of-corpus questions confidently, losing the one
+# behaviour this project exists to demonstrate (FR5). Too high and it over-refuses, which
+# merely looks unimpressive. A missing threshold used to mean None, which the retriever read
+# as "not calibrated yet" and left the gate OPEN: a fresh clone with no .env answered
+# everything and still looked like a working app. The default is the value calibrated for the
+# bundled corpus, so the gate is live before anyone configures anything.
+#
+# Re-derive with scripts/calibrate_threshold.py after changing the corpus, EMBEDDING_MODEL,
+# CHUNK_SIZE, or CHUNK_OVERLAP. See architecture.md section 5.3.
+DEFAULT_SIMILARITY_THRESHOLD = 0.6739
+
 DEFAULTS: dict[str, object] = {
     "EMBEDDING_BACKEND": "auto",
     "EMBEDDING_API_KEY": "",
@@ -23,7 +37,7 @@ DEFAULTS: dict[str, object] = {
     "CHUNK_SIZE": 500,
     "CHUNK_OVERLAP": 50,
     "TOP_K": 4,
-    "SIMILARITY_THRESHOLD": None,
+    "SIMILARITY_THRESHOLD": DEFAULT_SIMILARITY_THRESHOLD,
     "HISTORY_TURNS": 3,
     "RETRIEVAL_HISTORY_TURNS": 10,
     "EMBED_BATCH_SIZE": 32,
@@ -78,7 +92,7 @@ class Config:
     CHUNK_SIZE: int = 500
     CHUNK_OVERLAP: int = 50
     TOP_K: int = 4
-    SIMILARITY_THRESHOLD: float | None = None
+    SIMILARITY_THRESHOLD: float = DEFAULT_SIMILARITY_THRESHOLD
     HISTORY_TURNS: int = 3
     RETRIEVAL_HISTORY_TURNS: int = 10
     EMBED_BATCH_SIZE: int = 32

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 
-from .config import CONFIG
+from .config import CONFIG, DEFAULT_SIMILARITY_THRESHOLD
 from .embedder import Embedder
 from .errors import IndexMissingError
 from .models import RetrieveResult, coerce_history
@@ -89,9 +89,13 @@ class Retriever:
     def passes_threshold(self, best_score: float, threshold: float | None = None) -> bool:
         """The out-of-corpus gate (architecture.md section 3.7).
 
-        An unset threshold means calibration has not run yet, and the gate is open.
+        An unset threshold falls back to config, which always carries a calibrated number, and
+        then to DEFAULT_SIMILARITY_THRESHOLD. It never means "no gate": leaving the gate open
+        turns a missing config value into confident answers to out-of-corpus questions, which
+        is the exact failure this project is built to avoid. Over-refusing is recoverable by
+        lowering the number; the reverse is not.
         """
         threshold = CONFIG.SIMILARITY_THRESHOLD if threshold is None else threshold
         if threshold is None:
-            return True
+            threshold = DEFAULT_SIMILARITY_THRESHOLD
         return best_score >= threshold

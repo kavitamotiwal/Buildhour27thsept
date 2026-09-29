@@ -236,12 +236,14 @@ def test_threshold_gate_is_closed_below_and_open_above(retriever):
     assert retriever.passes_threshold(0.6, threshold=0.6) is True
 
 
-def test_uncalibrated_threshold_leaves_gate_open(retriever, monkeypatch):
-    # threshold=None falls through to config; before calibration the gate is open.
+def test_unset_threshold_fails_closed_rather_than_opening_the_gate(retriever, monkeypatch):
+    # Regression: an unset threshold used to mean "not calibrated yet" and left the gate OPEN,
+    # so a fresh clone with no .env answered out-of-corpus questions confidently while still
+    # looking like a working app. It must now fall back to the calibrated default.
     uncalibrated = SimpleNamespace(SIMILARITY_THRESHOLD=None, RETRIEVAL_HISTORY_TURNS=3, TOP_K=4)
     monkeypatch.setattr("ragchat.retriever.CONFIG", uncalibrated)
-    assert retriever.passes_threshold(0.01) is True
-    assert retriever.passes_threshold(0.99) is True
+    assert retriever.passes_threshold(0.60) is False
+    assert retriever.passes_threshold(0.80) is True
 
 
 def test_calibrated_threshold_comes_from_config(retriever, monkeypatch):

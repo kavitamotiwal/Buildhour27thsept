@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from ragchat.config import CONFIG
+from ragchat.config import CONFIG, DEFAULT_SIMILARITY_THRESHOLD
 from ragchat.errors import ConfigurationError
 from ragchat.ingest import run_ingest
 from ragchat.models import Turn
@@ -101,6 +101,44 @@ def test_ask_returns_the_retrieved_chunks_even_when_it_refuses(pipeline):
 def test_threshold_override_changes_the_gate(index, embedder):
     permissive = Pipeline(embedder=embedder, store=VectorStore(path=index), llm=ScriptedLLM(), threshold=0.1)
     assert not permissive.ask(OUT_OF_CORPUS).refused, "a low threshold should let anything through"
+
+
+# --- the gate survives a fresh clone -------------------------------------------
+
+
+def test_refuses_out_of_corpus_when_the_threshold_env_var_is_absent(index, embedder, monkeypatch):
+    """A clone with no .env has no SIMILARITY_THRESHOLD. The gate must still be armed.
+
+    Before this was fixed the default was None, which the retriever read as "not calibrated
+    yet" and left the gate open, so this exact case answered out-of-corpus questions
+    confidently while still looking like a working app. That is the whole FR5 failure mode.
+    """
+    monkeypatch.delenv("SIMILARITY_THRESHOLD", raising=False)
+    from ragchat.config import load_config
+
+    fresh = load_config()
+    assert fresh.SIMILARITY_THRESHOLD == DEFAULT_SIMILARITY_THRESHOLD
+
+    # The pipeline takes its threshold from config when none is passed, which is what the UI
+    # does. Pin it to the freshly-loaded value rather than the module-level CONFIG, so the
+    # absent env var is genuinely what drives the decision.
+    fresh_clone = Pipeline(embedder=embedder, store=VectorStore(path=index), llm=ScriptedLLM())
+    fresh_clone.threshold = fresh.SIMILARITY_THRESHOLD
+
+    llm = fresh_clone.generator.llm
+    answer = fresh_clone.ask(OUT_OF_CORPUS)
+    assert answer.refused, "a missing threshold must not open the gate"
+    assert llm.calls == [], "a refused question must never reach the model"
+
+
+def test_in_corpus_still_answers_with_the_default_threshold(index, embedder, monkeypatch):
+    # The default must be tight enough to refuse, not so tight that it refuses everything.
+    monkeypatch.delenv("SIMILARITY_THRESHOLD", raising=False)
+    from ragchat.config import load_config
+
+    fresh_clone = Pipeline(embedder=embedder, store=VectorStore(path=index), llm=ScriptedLLM())
+    fresh_clone.threshold = load_config().SIMILARITY_THRESHOLD
+    assert not fresh_clone.ask(IN_CORPUS).refused
 
 
 # --- history ------------------------------------------------------------------
